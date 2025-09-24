@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Dados da Planilha</title>
+    <!-- Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para os gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (xlsx) para ler arquivos de planilha -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Estilo customizado para um visual mais agradável */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            height: 40vh;
+            width: 100%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-6 md:p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+        <!-- Cabeçalho -->
+        <div class="text-center bg-blue-800 p-6 rounded-xl shadow-lg uppercase">
+            <h1 class="text-3xl sm:text-4xl font-bold text-white mb-4">Problemas QuadCom 2012 a 2025</h1>
+            <p id="file-info" class="text-blue-200 mb-2 max-w-2xl mx-auto hidden">Visualização dos dados de problemas registrados.</p>
+        </div>
+
+        <!-- Filtro Global -->
+        <div class="bg-blue-800 p-4 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+             <label for="yearSelector" class="text-lg font-semibold text-white">Filtrar por Ano:</label>
+             <select id="yearSelector" class="bg-blue-900/50 text-white border border-blue-600 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"></select>
+             <button id="clear-filters-btn" class="hidden bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 text-sm">Limpar Seleções</button>
+             <div id="active-filters-display" class="text-sm text-blue-200 flex items-center gap-2"></div>
+        </div>
+
+
+        <!-- Seção de Gráficos -->
+        <div id="dashboard-content" class="grid grid-cols-1 gap-8">
+            <!-- Wrapper para os gráficos de evolução -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Gráfico 2: Problemas por Ano de Fabricação -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    <h2 class="text-xl font-semibold text-white mb-4 bg-blue-800 p-4 text-center uppercase">Evolução por Ano de Fabricação</h2>
+                    <div class="chart-container p-4">
+                        <canvas id="problemsByManufacturingYearChart"></canvas>
+                    </div>
+                </div>
+                <!-- Gráfico 1: Problemas por Ano de Emissão -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    <h2 class="text-xl font-semibold text-white mb-4 bg-blue-800 p-4 text-center uppercase">Evolução por Ano de Emissão</h2>
+                    <div class="chart-container p-4">
+                        <canvas id="problemsByYearChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wrapper para os gráficos lado a lado -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Gráfico: Problemas por Modelo Base (Total) -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    <h2 id="model-chart-title" class="text-xl font-semibold text-white mb-4 bg-blue-800 p-4 text-center uppercase">Modelos que mais deram problema</h2>
+                    <div class="chart-container p-4">
+                        <canvas id="problemsByModelChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico: Top Tipos de Problema (por Ano) -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    <h2 id="type-chart-title" class="text-xl font-semibold text-white mb-4 bg-blue-800 p-4 text-center uppercase">Tipos de Problema</h2>
+                    <div class="chart-container p-4">
+                        <canvas id="problemsByTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Detalhes -->
+        <div id="table-container" class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <h2 class="text-xl font-semibold text-white mb-4 bg-blue-800 p-4 text-center uppercase">Quadro Detalhado dos Problemas</h2>
+            <div class="overflow-x-auto p-4">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border-r border-gray-200">Número</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border-r border-gray-200">Emissão</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider border-r border-gray-200">Cliente</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Problemas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTable" class="bg-white divide-y divide-gray-200">
+                        <!-- Linhas da tabela serão inseridas aqui via JavaScript -->
+                    </tbody>
+                </table>
+                 <div id="no-data-message" class="text-center py-10 text-gray-400 hidden">
+                    <p>Não há dados para exibir.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dados brutos fornecidos pelo usuário
+        const rawData = `
+51055	20/09/2012	Pro ups Soluções	1018	Guilherme Schwedler	22/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	Atualização da versão do microprocessador 1.02 Despachado dia 26/09/2012 Atualização de projeto (APP)
+51247	01/10/2012	Power Store Londrina PR	1029	Guilherme Schwedler	11/09/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO FIRMWARE Não reconhece 220v, botão de reset com os fios vermelhos invertido. Despachado dia 02/10/2012 Atualização de projeto (APP)
+51249	01/10/2012	Power Store Londrina PR	1023	Guilherme Schwedler	10/09/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO FIRMWARE Não reconhece 220v, botão de reset com os fios vermelhos invertido. Despachado dia 02/10/2012 Atualização de projeto (APP)
+51250	01/10/2012	Power Store Londrina PR	1007	Guilherme Schwedler	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO FIRMWARE Não reconhece 220v, botão de reset com os fios vermelhos invertido. Despachado dia 02/10/2012 Atualização de projeto (APP)
+51251	01/10/2012	Power Store Londrina PR	1026	Guilherme Schwedler	10/09/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO FIRMWARE Não reconhece 220v, botão de reset com os fios vermelhos invertido. Despachado dia 02/10/2012 Atualização de projeto (APP)
+51252	01/10/2012	Power Store Londrina PR	1024	Guilherme Schwedler	10/09/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO FIRMWARE Não reconhece 220v. Despachado dia 02/10/2012 Atualização de projeto (APP)
+51329	05/10/2012	NHS Matriz	1001	Guilherme Schwedler	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	REGRAVADO Atualização de projeto (APP)
+51479	22/10/2012	NHS Matriz	1005	Guilherme Schwedler	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	atualizado Para revisão geral
+52204	05/12/2012	Digity Fechada	1008	Guilherme Schwedler	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	reseta carga qndo defesagem entre as fases. Despachado dia 06/12/2012 Atualização de projeto (APP)
+52205	05/12/2012	Digity Fechada	1004	Guilherme Schwedler	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	resetava carga com defasagem de fases. Despachado dia 06/12/2012 Atualização de projeto (APP)
+52896	22/01/2013	NHS Matriz	1006	Ezequiel Jordão	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	Atualização de software. Para revisão geral
+54458	25/04/2013	Digity Fechada	1011	Marcelo Ricardo dos Santos Filho	22/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	 - Atualização de firmware. Despachado 08/05/13 Para revisão geral
+54459	25/04/2013	Digity Fechada	1003	Marcelo Ricardo dos Santos Filho	11/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	 - Atualização de Firmware. Despachado 08/05/13 Para revisão geral
+55978	20/08/2013	NHS Matriz	1077	Marcelo Ricardo dos Santos Filho	06/06/2013		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	equipamento sem defeito... Revisão
+56250	09/09/2013	NHS Matriz	1052	Marcelo Ricardo dos Santos Filho	03/01/2013		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	quadro quando ligado não inicializava,ficava travado apitando... Não liga
+56728	09/10/2013	NHS Matriz	1016	Marcelo Ricardo dos Santos Filho	22/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	Não relatado Revisão
+56729	09/10/2013	NHS Matriz	1036	Marcelo Ricardo dos Santos Filho	20/09/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	Não relatado Revisão
+57578	21/11/2013	NHS Matriz	1039	Hendrik Vinicius de Freitas	03/01/2013		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não relatado Sem defeitos
+59600	18/03/2014	PWM Sistemas	1095	Hendrik Vinicius de Freitas	14/10/2013		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	 - Trafo TR3 (trtwm1) do circuito FASEIN1 danificado, impossibilitando o funcionamento da saída ,quando selecionada a entrada AC1. Despachado dia 21/03/2014 Para revisão geral
+61913	14/08/2014	PWM Sistemas	1162	Elsio Weissheimer	15/04/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Cliente relatou que aparecia "defasagem 180 graus"no display quando alimentava as duas entradas com mesma fase; Trafo 3 com espira envertida; Enviado Componentes
+63596	04/12/2014	NHS Matriz	1222	Hendrik Vinicius de Freitas	30/10/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa de lcd não mostrava dados de tensão de carga de fonte, Periféricos
+64315	03/02/2015	QHN Nobreaks PR	1185	Hendrik Vinicius de Freitas	24/06/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Quadro chegou com a tampa danificada nas dobradiças, cristal danificado não ligando as 2 entradas juntas. Periféricos/Componentes
+65550	23/04/2015	NHS Matriz	1219	Hendrik Vinicius de Freitas	25/09/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	equipamento com funcionamento Ok Sem defeito
+67442	11/09/2015	NHS Matriz	1400	Hendrik Vinicius de Freitas	18/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	placa foi trocada por estar ligada junto com outra que estava com defeito em paralelo . Sem defeito
+67507	17/09/2015	Pro ups Soluções	1217	Hendrik Vinicius de Freitas	25/09/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Cortando saída quando ficava sem rede principal. E mostrava potência mínima incorreta quando mudava rede várias vezes. Firmware
+67786	13/10/2015	NHS Matriz	1425	Hendrik Vinicius de Freitas	14/09/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização firmware para corrigir defeito de fabrica. Produção
+68162	27/10/2015	NHS Matriz	1222	Hendrik Vinicius de Freitas	30/10/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Quadro com gabinete riscado e placa com modelo desatualizado. Sem defeito
+68301	09/11/2015	NHS Matriz	1429	Hendrik Vinicius de Freitas	17/09/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	não apresentou defeito. Sem defeito
+68302	09/11/2015	NHS Matriz	1427	Hendrik Vinicius de Freitas	17/09/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Sem defeito
+68365	17/11/2015	Pro ups Soluções	1217	Hendrik Vinicius de Freitas	25/09/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Dissipador do regulador 1 e 2 estavam se encostando, cortando a tenção de saida. Periféricos
+68468	25/11/2015	Pro ups Soluções	1217	Hendrik Vinicius de Freitas	25/09/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Equipamento trocado gabinete deichado em estado de novo, sem defeito. Sem defeito
+68994	19/01/2016	NHS Matriz	1437	Hendrik Vinicius de Freitas	16/10/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	A trilha do D26 retificador da faze 2 esta rompida. Fonte
+69121	27/01/2016	NHS Matriz	1375	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	quadro foi trocado por estar desligando a saída , foi regravado firmware e liberado . Firmware
+69319	12/02/2016	ACV Sistemas de Energia SP	1373	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	 Firmware
+69911	28/03/2016	PWM Sistemas	1012	Hendrik Vinicius de Freitas	22/06/2012		94.C4.000080	Quadro de Comutação Automático 80A	94.C4.000080	Quadro de Comutação Automático 80A	Não esta selecionando a rede principal e não estava comunicando. Firmware
+70111	15/04/2016	ACV Sistemas de Energia SP	1383	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware desatualizado. Firmware
+70194	22/04/2016	Hardtec Assistência Técnica em Computadores	1354	Elsio Weissheimer	02/07/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Cliente relatou que em alguns momento que realizada a comutação da chave o quadro não funcionava corretamente.Foi atualizado o firmaware. Firmware
+70202	25/04/2016	NHS Matriz	1217	Elsio Weissheimer	25/09/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	O quadro não apresentou defeito e o ruido é normal do equipamento. Sem defeito
+70571	18/05/2016	ACV Sistemas de Energia SP	1383	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Foi entrado em contato com o cliente para saber qual era o defeito in loco, o mesmo não sabia explicar qual era o defeito e ficou de verificar. Sem defeito
+70572	18/05/2016	ACV Sistemas de Energia SP	1390	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Cliente relatou que que o equipamento não estava selecionando a rede principal. Firmware
+71016	23/06/2016	NHS Matriz	1384	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito em bancada. O mauro relatou que o quadro estava deixando o carga do cliente desligar. Sem defeito
+71017	23/06/2016	NHS Matriz	1378	Hendrik Vinicius de Freitas	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito em bancada. O mauro relatou que o quadro estava deixando o carga do cliente desligar. Sem defeito
+71018	23/06/2016	NHS Matriz	1409	Hendrik Vinicius de Freitas	11/09/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Trilha do FaseIN2 esta rompida. Fonte
+71239	14/07/2016	NHS Matriz	1379	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo problema da defasagem. Firmware
+71240	14/07/2016	NHS Matriz	1387	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo problema da defasagem. Firmware
+71241	14/07/2016	NHS Matriz	1381	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo problema da defasagem. Firmware
+71242	14/07/2016	NHS Matriz	1268	Elsio Weissheimer	19/01/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo, problema da defasagem. Gabinete com tinta branca. Firmware/Mecânica
+71243	14/07/2016	NHS Matriz	1385	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo problema da defasagem. Firmware
+71244	14/07/2016	NHS Matriz	1386	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware antigo problema da defasagem. Firmware
+71620	18/08/2016	ACV Sistemas de Energia SP	1374	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	atualização no firmware Firmware
+71621	18/08/2016	ACV Sistemas de Energia SP	1392	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	atualização no firmware Firmware
+71755	31/08/2016	NHS Matriz	1377	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+71756	31/08/2016	NHS Matriz	1446	Elsio Weissheimer	10/12/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+71757	31/08/2016	NHS Matriz	1380	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+71758	31/08/2016	NHS Matriz	1376	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+71759	31/08/2016	NHS Matriz	1382	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+71760	31/08/2016	NHS Matriz	1388	Elsio Weissheimer	11/08/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Atualização de firmware. Firmware
+72279	26/10/2016	ACV Sistemas de Energia SP	1295	Elsio Weissheimer	02/04/2015		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	 Firmware
+75222	24/08/2017	Help Sys	1024	Elsio Weissheimer	13/10/2016		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Não estava ligando. Não estava oscilando o cristal e o defeito era o processador. Microcontrolador
+78564	23/07/2018	NHS Matriz	1554	Elsio Weissheimer	30/09/2016		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa carbonizada e com trilhas rompidas nos circuitos da FASE1 e FASE2. Placa/Componentes
+78847	29/08/2018	NHS Matriz	1833	Elsio Weissheimer	07/12/2017		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Transformador da amostra de rede estava trocado por um modelo que não era compativel, cliente fez o reparo. Placa não reconhecia rede na entrada 1. Periféricos
+78848	29/08/2018	NHS Matriz	1834	Elsio Weissheimer	07/12/2017		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não apresentou defeito em bancada, placa chegou configurada para rede 120v. Foi testada com rede 120v e 220v as duas entradas foram testadas. Periféricos
+79106	28/09/2018	Macponta	1010	Elsio Weissheimer	18/03/2016		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Não apresentou defeito. Sem defeito
+79369	29/10/2018	NHS Matriz	1842	Elsio Weissheimer	08/01/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Sem defeito
+79645	29/11/2018	NHS Matriz	1670	Elsio Weissheimer	28/07/2017		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Fase 1 com trilha rompida para o sensor de corrente U2, ntc1 queimado. Agentes externos
+79783	10/12/2018	NHS Matriz	1671	Lucas Felipe Dolci da Silva	03/08/2017		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Fonte de entrada 2 danificada CI da fonte (U3) alterado entre o pino 4(VFB) e o pino 2(GND). não reconhecendo alimentação. Agentes externos
+81502	25/04/2019	NHS Matriz	1978	Elsio Weissheimer	15/08/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não apresentou defeito em bancada, será descartada por se tratar de um possível defeito intermitente, RP: 4980. Sem defeito
+81884	31/05/2019	NHS Matriz	1140	Elsio Weissheimer	30/04/2019		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa não apresentou defeito, AC1 e AC2 ok. Sem defeito
+82683	15/08/2019	RKF Nobreaks	1917	Guida Silva Sousa	20/04/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Relé RL1 do circuito NIN1 - NOUT1 grudado. Componentes
+83760	10/12/2019	NHS Matriz	2206	Elsio Weissheimer	09/08/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Amostra AMVACIN1 da FASE1 estava alterada no display, valor que estava no display era o dobro do valor real. Ao regravar o firmware a placa normalizou. Componentes
+84168	11/02/2020	NHS Matriz	2027	Guida Silva Sousa	26/10/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Componentes e trilha do FASE1 carbonizados. Agentes externos
+84347	28/02/2020	NHS Matriz	2155	Elsio Weissheimer	29/05/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa (Quadro de Comutação) carbonizado entre os polos positivo e negativo embaixo do capacitor C "49". Dessa forma, ocorreu o rompimento de trilhas. Placa
+84370	05/03/2020	L. C. Nesi	2295	Elsio Weissheimer	28/11/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Entrada AC1 do Quadro de Comutação está com problema, gera a senóide na saída mas logo ''desaparece''. Microprocessador estava fazendo a leitura de rede errada em 120v estava lendo 220v por isso cortava o sinal para bater o entrada AC1, foi informado ao Daniel do PeD que analisou esse problema, e o Quadro pode ter sido calibrado errado. Foi regravado o firmware e calibrado. Periféricos
+84637	16/04/2020	NHS Matriz	1947	Elsio Weissheimer	21/06/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não apresentou defeito. Sem defeito
+84947	29/05/2020	NHS Matriz	1878	Juliana Mara Gabardo	14/03/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Trilhas e componentes do circuito NEUTRO2 carbonizados. Agentes externos
+84948	29/05/2020	NHS Matriz	1136	Juliana Mara Gabardo	15/04/2019		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	 Sem defeito
+85198	19/06/2020	NHS Matriz	2026	Lucas Felipe Dolci da Silva	26/10/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Trilhas e componentes referentes ao FASE1 e NEUTRO1 carbonizados. Agentes externos
+85428	09/07/2020	K3M	1154	Guida Silva Sousa	22/06/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Cliente com duvida em como alterar para 220V, pediu para fazer a alteração. Sem defeito
+85785	17/08/2020	NHS Matriz	2407	Elsio Weissheimer	04/05/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Componente e trilhas carbonizadas no R39 do circuito fonte. Componentes
+86223	13/10/2020	NHS Matriz	2178	Elsio Weissheimer	10/07/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Varistor V1 e trilhas do FIN1 carbonizados, NTC1 e trilhas do circuito NEUTRO1 carbonizado. Agentes externos
+86551	27/11/2020	NHS Matriz	2005	Elsio Weissheimer	14/09/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Capacitores eletrolítico (YAGEO) do circuito Fonte 2 estufados. Placa chegou quebrada no canto próximo ao R4, sem condições de retornar ao estoque. Componentes
+86609	08/12/2020	NHS Matriz	1935	Elsio Weissheimer	21/05/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não apresentou defeito. Sem defeito
+86806	12/01/2021	Mundial Info Energia Guarapuava PR	1127	Elsio Weissheimer	17/03/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com o circuito fonte 2 danificado (AC2). Diodo Z2 danificado, por esse motivo a fonte 2 não estava funcionando. Componentes
+86840	15/01/2021	NHS Matriz	1018	Elsio Weissheimer	04/12/2019		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Rele RL5 do circuito FIN_1B carbonizou internamente e rompeu a trilha entre o rele e o capacitor C89 do circuito de acelerador. Agentes externos
+87192	08/03/2021	NHS Matriz	1056	Geovane Allex Telma de Oliveira	25/01/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Quadro de comutação não apresentou defeitos, testado com No Break trifásico. Carga resistiva usada para testes marcou corretamente no display. Sem defeito
+87282	19/03/2021	FCA Telecom	1007	Geovane Allex Telma de Oliveira	19/10/2018		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+87588	29/04/2021	FCA Telecom	1007	Geovane Allex Telma de Oliveira	19/10/2018		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Cliente relata que o equipamento não indica quando há uma inversão de fase. Feito teste em laboratório, ao inverter as fases, display apresente rede Não OK e os valores de tensão fica zerados, porém a tensão de saída é gerada normalmente. Foi aberto o Redmine #26903 para relatar o caso para a engenharia. Daniel fez uma melhoria no firmware, foi inserido identificação de fase invertida mostrado no display e não bate o relé de saída. Agentes externos
+87671	13/05/2021	NHS Matriz	2359	Geovane Allex Telma de Oliveira	31/01/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	NTC1 do circuito Fase de Entrada 1 carbonizou e danificou as trilhas da placa. Agentes externos
+87672	13/05/2021	NHS Matriz	2271	Geovane Allex Telma de Oliveira	14/10/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	NTC1 do circuito Fase de Entrada 1 carbonizou e danificou as trilhas da placa. Agentes externos
+87715	18/05/2021	NHS Matriz	1003	Geovane Allex Telma de Oliveira	19/12/2018		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Placa desatualizada e sem condições de retornar ao estoque. Microcontrolador
+87886	07/06/2021	Hardtec Assistência Técnica em Computadores	2452	Geovane Allex Telma de Oliveira	23/06/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Equipamento foi testado e não apresentou defeito. Conforme contato com o cliente, a falha está na fiação do mesmo, (quadro elétrico do cliente). Sem defeito
+87929	11/06/2021	NHS Matriz	1065	Geovane Allex Telma de Oliveira	15/07/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+87968	17/06/2021	NHS Matriz	2484	Geovane Allex Telma de Oliveira	24/08/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Sem defeito
+88027	28/06/2021	NHS Matriz	1054	Geovane Allex Telma de Oliveira	19/06/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador em curto, placa D0.136 sem condições de retornar ao estoque. Microcontrolador
+88099	08/07/2021	NHS Matriz	1298	Geovane Allex Telma de Oliveira	10/05/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Circuito Integrado Fotoacoplador U11 do circuito FASE2 danificado, alterando a amostra de tensão de entrada. Componentes
+88338	09/08/2021	NHS Matriz	1056	Geovane Allex Telma de Oliveira	25/01/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	De acordo com a RA: 68292, o quadro não mostra os dados na entrada e bate relé quando coloca as duas redes. Engenharia foi no local instalado e constatou o defeito, feito a troca do equipamento. Analisado em bancada pela engenharia, não apresentou defeitos, apenas esta com a versão desatualizada no firmware 0.00, engenharia orientou a atualizar o firmware e retornar o equipamento para o estoque. Gabinete está furado na parte de baixo, será necessário a troca. Agentes externos
+88406	20/08/2021	NHS Matriz	2695	Geovane Allex Telma de Oliveira	16/06/2021		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Sem defeito
+88415	23/08/2021	NHS Matriz	2198	Geovane Allex Telma de Oliveira	26/07/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Não apresentou defeito. Sem defeito
+88540	10/09/2021	NHS Matriz	1199	Geovane Allex Telma de Oliveira	09/10/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Varistor do circuito FASE2 carbonizou e danificou o rele RL4. Agentes externos
+88543	13/09/2021	Techs Energy - MG	1053	Elsio Weissheimer	14/01/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Rele RL3 do circuito FIN_1A estava grudado. Agentes externos
+88684	30/09/2021	Mundial Info Energia Guarapuava PR	1229	Elsio Weissheimer	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Componentes e trilhas do circuito FASE1 carbonizados. Agentes externos
+88719	06/10/2021	NHS Matriz	2255	Elsio Weissheimer	07/10/2019		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa chegou avariada, quebrada no canto. Agentes externos
+89077	26/11/2021	NHS Matriz	1155	Geovane Allex Telma de Oliveira	07/07/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+89191	13/12/2021	NHS Matriz	2491	Geovane Allex Telma de Oliveira	31/08/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não apresentou defeito. Sem defeito
+89335	04/01/2022	NHS Matriz	1093	Elsio Weissheimer	28/11/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+89454	24/01/2022	NHS Matriz	1092	Elsio Weissheimer	28/11/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+89460	24/01/2022	NHS Matriz	1332	Elsio Weissheimer	06/01/2021		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa não apresentou defeito. Sem defeito
+89742	28/02/2022	NHS Matriz	2399	Geovane Allex Telma de Oliveira	17/04/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa carbonizada no circuito Fonte2. Agentes externos
+89746	28/02/2022	NHS Matriz	2399	Geovane Allex Telma de Oliveira	17/04/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa D0.210 com microcontrolador danificado. Ao tentar trocar o micro com o ferro de solda, foi danificado uma trilha. Placa será descartada. Microcontrolador
+90180	13/04/2022	NHS Matriz	1177	Geovane Allex Telma de Oliveira	24/08/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90181	13/04/2022	NHS Matriz	1178	Geovane Allex Telma de Oliveira	24/08/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90182	13/04/2022	NHS Matriz	2068	Geovane Allex Telma de Oliveira	13/12/2018		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Rele do circuito NIN2 carbonizado internamente. Agentes externos
+90199	14/04/2022	NHS Matriz	1078	Geovane Allex Telma de Oliveira	10/10/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Placa modelo antigo, não retornará ao estoque. Microcontrolador
+90232	20/04/2022	Mundial Info Energia Guarapuava PR	1056	Geovane Allex Telma de Oliveira	24/06/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90588	07/06/2022	NHS Matriz	1022	Geovane Allex Telma de Oliveira	04/03/2020		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+90608	10/06/2022	NHS Matriz	1198	Geovane Allex Telma de Oliveira	08/10/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90695	22/06/2022	NHS Matriz	1181	Geovane Allex Telma de Oliveira	03/09/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90909	27/07/2022	Connect Master	1068	Geovane Allex Telma de Oliveira	22/07/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+90910	27/07/2022	Connect Master	1103	Geovane Allex Telma de Oliveira	13/01/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+91046	15/08/2022	NHS Matriz	1156	Geovane Allex Telma de Oliveira	07/07/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+91083	18/08/2022	NHS Matriz	1164	Geovane Allex Telma de Oliveira	12/08/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+91453	04/10/2022	NHS Matriz	1264	Elsio Weissheimer	17/02/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador em curto. Microcontrolador
+91500	11/10/2022	NHS Matriz	1336	Elsio Weissheimer	05/07/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Fotoacoplador U10 danificado. Componentes
+91567	18/10/2022	Hafele	1064	Geovane Allex Telma de Oliveira	15/07/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador com defeito. Microcontrolador
+91568	18/10/2022	Hafele	1062	Geovane Allex Telma de Oliveira	11/07/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador com defeito. Microcontrolador
+91737	01/11/2022	NHS Matriz	1269	Geovane Allex Telma de Oliveira	17/02/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+91855	16/11/2022	NHS Matriz	2532	Geovane Allex Telma de Oliveira	20/10/2020		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Relés RL1 e RL8 (relés dos neutros 1 e 2) danificados. Componentes
+91856	16/11/2022	NHS Matriz	2728	Geovane Allex Telma de Oliveira	06/08/2021		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Relés RL1 e RL8 (relés dos neutros 1 e 2) danificados. Componentes
+91911	21/11/2022	P & Z Automação	1088	Geovane Allex Telma de Oliveira	29/10/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado, borneira com a entrada AC2 - Fase C danificada. Microcontrolador/Agentes externos
+91986	25/11/2022	NHS Matriz	1249	Geovane Allex Telma de Oliveira	01/06/2020		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa sem defeitos Sem defeito
+91987	25/11/2022	NHS Matriz	1399	Geovane Allex Telma de Oliveira	09/08/2021		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa não apresentou defeitos em teste de comutação, porem apresenta trilha exposta na parte inferior da placa próximo ao CN20 ,conforme foto em anexo. Placa não exibe sinal de saída no software QUADCOM. Placa
+92008	28/11/2022	NHS Matriz	1485	Geovane Allex Telma de Oliveira	20/04/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa carbonizada ao redor do Varistor. Placa
+92074	06/12/2022	NHS Matriz	1177	Geovane Allex Telma de Oliveira	19/05/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Sem defeitos Sem defeito
+92081	06/12/2022	NHS Matriz	1337	Geovane Allex Telma de Oliveira	05/07/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Foram feitos testes com duas fontes de rede, houve a troca das redes e o display acende. Sem defeito
+92091	07/12/2022	NHS Matriz	1253	Geovane Allex Telma de Oliveira	04/02/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+92094	08/12/2022	Mundial Info Energia Guarapuava PR	1229	Geovane Allex Telma de Oliveira	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Processador danificado. Microcontrolador
+92095	08/12/2022	Mundial Info Energia Guarapuava PR	1228	Geovane Allex Telma de Oliveira	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Processador danificado. Microcontrolador
+92110	09/12/2022	NHS Matriz	1216	Geovane Allex Telma de Oliveira	29/10/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. Microcontrolador
+92116	09/12/2022	NHS Matriz	1230	Geovane Allex Telma de Oliveira	15/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Apresenta o processador danificado. Microcontrolador
+92167	14/12/2022	NHS Matriz	1320	Elsio Weissheimer	15/06/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Processador danificado. Microcontrolador
+92456	30/01/2023	NHS Matriz	1041	Geovane Allex Telma de Oliveira	10/11/2020		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+92457	30/01/2023	NHS Matriz	2930	Geovane Allex Telma de Oliveira	19/05/2022		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa carbonizada próximo ao Diodo D16 eD24. Foto em Anexo Placa
+92501	03/02/2023	QHN Nobreaks PR	1054	Geovane Allex Telma de Oliveira	25/01/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado, sensores de corrente em curto. Componentes/Microcontrolador
+92585	13/02/2023	NHS Matriz	1024	Geovane Allex Telma de Oliveira	17/03/2020		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+92891	22/03/2023	NHS Matriz	1331	Geovane Allex Telma de Oliveira	29/06/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Processador danificado. Microcontrolador
+93003	04/04/2023	NHS Matriz	2746	Geovane Allex Telma de Oliveira	31/08/2021		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa carbonizada e trilha rompida. Placa
+93006	04/04/2023	NHS Matriz	1642	Geovane Allex Telma de Oliveira	29/11/2022		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa carbonizada ao redor dos diodos. Placa
+93055	12/04/2023	Lopat	1372	Geovane Allex Telma de Oliveira	07/10/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Não reconhece rede AC2, microcontrolador danificado. Caso foi relatado no Redmine #37530. Microcontrolador
+93056	12/04/2023	Lopat	1293	Geovane Allex Telma de Oliveira	27/04/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Ao conectar na rede acende o display e não gera saída, microcontrolador danificado. Caso foi relatado no Redmine #37530. Microcontrolador
+93057	12/04/2023	Lopat	1243	Geovane Allex Telma de Oliveira	15/01/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Ao conectar na rede acende o display e não gera saída, microcontrolador danificado. Caso foi relatado no Redmine #37530. Microcontrolador
+93192	03/05/2023	Microwork RJ	1029	Elsio Weissheimer	22/07/2020		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Equipamento chegou sem os parafusos da borneira. Microcontrolador danificado. A pedido da engenharia, microcontrolador será trocado em cortesia devido ao defeito estar relacionado a um erro de projeto, que até o momento não foi descoberto a causa. A coordenação da assistência esta ciente da situação.  Microcontrolador
+93226	09/05/2023	Egnex	1063	Elsio Weissheimer	23/04/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+93243	11/05/2023	Connect Master	1104	Elsio Weissheimer	13/01/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Processador danificado. O cliente solicitou uma aba lateral. Microcontrolador/Agentes externos
+93300	19/05/2023	NHS Matriz	1331	Elsio Weissheimer	29/06/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa não foi localizada. Será apenas liberado a OS. Sem defeito
+93452	12/06/2023	NHS Matriz	1144	Elsio Weissheimer	22/11/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Cliente comprou o quadro de comutação e dois nobreaks trifásicos 10KVA, RA 68844, equipamentos controlam as cancelas de entradas e saídas dos estacionamentos de um shopping. Após alguns dias em uso normal estourou os dois nobreaks e Quad Com. De acordo com a engenharia o defeito pode ter iniciado no Quad Com, onde fechou um curto entre as saídas dos nobreaks (OS 93312 e 93313) e danificou os dois. Cliente enviou a placa do Quad Com separadamente dos nobreaks. Placa do Quad com os reles dos circuitos de saída carbonizados, ao substituir os reles funcionou normalmente em bancada, porém a placa não retornará ao estoque devido a possível defeito intermitente ou falha no projeto, será dado baixa e ficará em teste com o Daniel na engenharia. Placa
+93468	14/06/2023	NHS Matriz	1329	Elsio Weissheimer	15/06/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+93469	14/06/2023	NHS Matriz	1329	Elsio Weissheimer	15/06/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	 
+93573	27/06/2023	NHS Matriz	1254	Elsio Weissheimer	04/02/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (leds acesos constantemente, display aceso sem caracteres, relés não batem) Microcontrolador
+93694	10/07/2023	NHS Matriz	1175	Elsio Weissheimer	21/08/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa totalmente mexida, com curtos ao redor dos pinos dos trafinhos, com super aquecimento ao redor dos resistores R85 e R86. Placa
+93715	11/07/2023	QHN Nobreaks PR	1057	Elsio Weissheimer	05/02/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Sensores de corrente em curto, microcontrolador danificado. Microcontrolador/Componentes
+93926	25/07/2023	NHS Matriz	1086	Mauricio da Silva Rodrigues	10/09/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+94091	16/08/2023	QHN Nobreaks PR	1059	Mauricio da Silva Rodrigues	23/02/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontolador danificado (display acende sem caracteres, relés não batem). OBS: quadro veio sem os parafusos da borneira. Microcontrolador
+94151	18/08/2023	NHS Matriz	1033	Mauricio da Silva Rodrigues	21/09/2020		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa referente ao pedido 543441. Não apresentou defeito, cliente alegou que a placa não ligou, cliente pode ter colocado o flat do display invertido. Sem defeito
+94249	04/09/2023	NHS Matriz	1065	Elsio Weissheimer	16/06/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa não ligava, ao trocar o micro , placa rompeu trilha quando ligada na rede, trilha positivo do C32 Fonte
+94250	04/09/2023	NHS Matriz	1066	Elsio Weissheimer	16/06/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado, sensores hall em curto. Componentes
+94262	05/09/2023	Hardtec Assistência Técnica em Computadores	2769	Elsio Weissheimer	06/10/2021		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa do nobreak com microcontrolador em curto e trilhas emendadas (foto em anexo). Placa
+94468	06/10/2023	NHS Matriz	1294	Mauricio da Silva Rodrigues	27/04/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com micro controlador danificado. Microcontrolador
+94697	31/10/2023	NHS Matriz	3448	Elsio Weissheimer	28/08/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Cliente relatou que os nobreak ligados na entrada do Quad estavam atuando proteção quando era transferido a carga de um para o outro. Entrada 1 com Nobreak TW DNB Intelbras 3kVA e entrada 2 com Nobreak Lacerda Online 3Kva, carga de servidores. Quad não apresentou defeito em bancada, passou por testes na engenharia e também não apresentou defeito. Atualizado o firmware da versão 3.03 para a versão 3.04. Sem defeito
+94774	08/11/2023	NHS Matriz	1184	Elsio Weissheimer	05/08/2023		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Capacitores de 400V do circuito de entrada da fonte estufados. De acordo com a engenharia, cliente pode ter invertido o neutro com uma das fases.  Componentes/Agentes externos
+94782	09/11/2023	NHS Matriz	1836	Elsio Weissheimer	04/08/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Sem defeitos. Sem defeito
+94793	10/11/2023	NHS Matriz	1337	Elsio Weissheimer	05/07/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com micro controlador danificado. Microcontrolador
+94795	10/11/2023	NHS Matriz	1377	Elsio Weissheimer	09/10/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa do pedido 545956 sem defeitos. Sem defeito
+94812	13/11/2023	NHS Matriz	1661	Elsio Weissheimer	17/01/2023		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa chegou sem os relés. Não apresentou defeitos. Agentes externos
+94831	16/11/2023	NHS Matriz	1499	Elsio Weissheimer	05/04/2022		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa do pedido 539448 não foi usada. Não apresentou defeitos. Sem defeito
+94832	16/11/2023	NHS Matriz	1121	Elsio Weissheimer	06/03/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com micro controlador danificado. Microcontrolador
+94837	17/11/2023	NHS Matriz	1290	Elsio Weissheimer	12/04/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com micro controlador danificado. Microcontrolador
+94933	29/11/2023	NHS Matriz	1100	Elsio Weissheimer	07/01/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+94968	04/12/2023	Nobreak Londrina Pr	3283	Elsio Weissheimer	10/04/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Firmware desatualizado. Foi colocado a versão 3.04 e testado a ETHERNET. Sem defeitos. Firmware
+95006	08/12/2023	Connect Master	2913	Elsio Weissheimer	27/04/2022		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Fonte da fase 1 com diversos componentes danificados. NTC1 e R49 abertos, CI U2 e os diodos D24, D23, D17, D16 e Z3 em curto. Fonte
+95115	27/12/2023	Microwork RJ	1115	Juliana Mara Gabardo	09/01/2014		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa com capacitores eletrolíticos danificados com ruídos no 12V do circuito fonte. Componentes/Fonte
+95260	12/01/2024	Connect Master	1628	Isabelly dos Santos Fagundes	17/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95349	24/01/2024	NHS Matriz	1512	Jair Padilha	24/05/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95446	05/02/2024	Lopat	1073	Jair Padilha	10/09/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95447	05/02/2024	Lopat	1193	Jair Padilha	24/09/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95473	06/02/2024	Cristec	1635	Jair Padilha	21/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95515	15/02/2024	Connect Master	1104	Jair Padilha	13/01/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador com firmware corrompido. Firmware
+95516	15/02/2024	Connect Master	1105	Jair Padilha	13/01/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95531	16/02/2024	NHS Matriz	1664	Jair Padilha	22/12/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95649	04/03/2024	NHS Matriz	1493	Jair Padilha	15/03/2022		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa sem defeitos. Sem defeito
+95720	08/03/2024	NHS Matriz	1658	Jair Padilha	27/12/2022		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Placa com Trafo TR2 da amostra da fase 2 danificado. Componentes
+95722	08/03/2024	NHS Matriz	1157	Jair Padilha	20/07/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95723	08/03/2024	NHS Matriz	1227	Jair Padilha	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95724	08/03/2024	NHS Matriz	1076	Jair Padilha	27/09/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado. Microcontrolador
+95777	13/03/2024	Connect Master	2897	Jair Padilha	09/04/2022		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa com trilha rompida entre o FIN e os diodos do circuito fonte. Agentes externos/Placa
+95875	22/03/2024	Central do Nobreak	1695	Jair Padilha	03/02/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Leds e display acesos direto (display sem os caracteres). Microcontrolador danificado. Microcontrolador
+95940	27/03/2024	Lopat	1076	Elsio Weissheimer	27/09/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Equipamento com cabo flat invertido. Agentes externos
+95941	27/03/2024	Lopat	1373	Elsio Weissheimer	07/10/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com Microcontrolador danificado Microcontrolador/Placa
+96172	19/04/2024	Power Control RS	1435	Elsio Weissheimer	24/01/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com PAD do microcontrolador danificado e em curto. Microcontrolador
+96175	19/04/2024	Power Control RS	1435	Elsio Weissheimer	24/01/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. (display acende sem caracteres, relés não batem). Sem defeito/Microcontrolador
+96217	24/04/2024	Soproweb Tecnologia Eireli	1365	Elsio Weissheimer	28/09/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador em curto. Microcontrolador
+96234	24/04/2024	Karita Peixoto Pouso Alto Renaud Frazão	1003	Elsio Weissheimer	17/10/2022		94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	Equipamento não apresentou defeito. Será substituído o gabinete riscado e retornado para o estoque. Sem defeito
+96385	02/05/2024	Horus Sistema de Energia	1146	Elsio Weissheimer	23/11/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa apresentando falha na Fonte 1. Capacitor SMD C99 (10uF/25V) danificado alterando a tensão de alimentação do CI do circuito Fonte 1.  Componentes
+96418	06/05/2024	2MR Infraestrutura	3252	Elsio Weissheimer	23/02/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Equipamento com gabinete avariado. Não apresentou defeitos durante os testes. Agentes externos
+96488	13/05/2024	Hafele	1065	Elsio Weissheimer	15/07/2019		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Reincidência de microcontrolador em curto. Placa trocada. Ventilador emperrado. Microcontrolador
+96531	17/05/2024	NHS Matriz	0	Elsio Weissheimer	01/01/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A			Microcontrolador danificado. Microcontrolador
+96592	05/06/2024	Central do Nobreak	2168	Elsio Weissheimer	15/05/2024		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Nobreak não apresentou defeitos durante os testes. Sem defeito
+96638	07/06/2024	Marcos da Silva Velloza	1011	Elsio Weissheimer	17/02/2023		94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	Foi visto um defeito intermitente no circuito fonte da placa, por este motivo será trocada por uma nova. Fonte
+96646	07/06/2024	APS Nobreaks SP	1121	Elsio Weissheimer	06/03/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador e microchaves danificados. Microcontrolador/Componentes
+96708	12/06/2024	Vogliatec Sistema Energia	1387	Elsio Weissheimer	27/10/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. (display acende sem caracteres, relés não batem). Microcontrolador
+96792	19/06/2024	Control Systems ES	1487	Elsio Weissheimer	03/05/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Microchaves quebradas. Microcontrolador/Agentes externos
+96793	19/06/2024	Control Systems ES	1489	Elsio Weissheimer	03/05/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado. (display acende sem caracteres, relés não batem). Microcontrolador
+96803	20/06/2024	Solaxis Eng. e Energia Solar - filial (POA)	1003	Elsio Weissheimer	17/10/2022		94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	Equipamento com gabinete danificado e placa com trilhas rompidas. Como está descrito na RA, uma LAGARTIXA entrou no equipamento e deu curto nos componentes. Agentes externos
+96842	01/07/2024	NHS Matriz	3705	Elsio Weissheimer	22/05/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Aparelho sofreu alguma batida forte, gabinete torto, borneira danificada. Placas funcionando normalmente, firmware foi atualizado. Transporte
+96900	05/07/2024	Nova Era Porto Velho-RO	1117	Doraci Cristina Santos	06/05/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	NÃO LIGA  Componentes
+96966	11/07/2024	Syma Computadores Matriz	1073	Doraci Cristina Santos	26/07/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa não apresentou defeito. Sem defeito
+97026	22/07/2024	Continus Sistemas de Energia	3304	Doraci Cristina Santos	09/05/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Solda fria no capacitor da fonte (C26) causando funcionamento intermitente. Produção
+97232	09/08/2024	Terra Telecom - SC	1562	Igor de Souza de Lima	26/08/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Microcontrolador
+97265	12/08/2024	CLSES Tecnologia e Energia	1184	Igor de Souza de Lima	05/08/2023		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Rele RL7 do circuito FIN_1C com os contatos grudados. Equipamento é utilizado com um Inversor Híbrido Trifásico, de acordo com a engenharia, cliente pode estar invertendo a sequencia de fases. Equipamento analisado e testado pela engenharia. Agentes externos
+97266	12/08/2024	CLSES Tecnologia e Energia	1217	Igor de Souza de Lima	05/07/2024		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa com as trilhas FIN2_B e FIN2_C rompidas. Provável causa: sobretensão na entrada fase 2. Placa/Agentes externos
+97284	13/08/2024	CLS Informatica Ltda	3552	Elsio Weissheimer	08/12/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Componentes do circuito fonte da Fase2 danificados, NTC2 carbonizou e danificou a placa, diodos de retificação em curto, capacitor eletrolítico C48 (47uF/400V) estourado. Agentes externos
+97354	21/08/2024	Casa Nobreak RS	3750	Elsio Weissheimer	29/07/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000052	Quadro de Comutação Automático QuadCom 50A Eth	Placa com um pequeno pedaço de terminal curtando o microcontrolador nos terminais 28, 29 e 30, fazendo com que a FONTE 1 não funcionasse. Placa ETHERNET com microcontrolador danificado. Microcontrolador/Produção
+97385	23/08/2024	Digitecnica Equipamentos e Serviços	1812	Elsio Weissheimer	30/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Uma das microchaves quebrada. Agentes externos/Microcontrolador
+97439	29/08/2024	J A Equipamentos	1122	Doraci Cristina Santos	13/03/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa foi enviada no pedido nº 556038 sem passar por teste em bancada, ficando assim sem a gravação do firmware. Agentes externos
+97492	02/09/2024	RJ Automação	1604	Elsio Weissheimer	18/10/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+97534	03/09/2024	Mega Power Nobreak & Cia BH	1704	Elsio Weissheimer	16/02/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sme caracteres, relés não batem). Microcontrolador
+97548	03/09/2024	New Connect	2002	Elsio Weissheimer	24/11/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Varistor V2 estourado, microchaves quebradas, LEDs D43 com terminais quebrados. Defeito causado provavelmente por pico de tensão da rede. Componentes/Agentes externos
+97563	04/09/2024	Nobresol Sul	1661	Elsio Weissheimer	17/01/2023		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Relés FIN2 (RL9 e RL10) colados. Ao abrir os relés foi possível verificar que estão com os contatos queimados (fotos em anexo). Componentes
+97579	05/09/2024	Ata NoBreak	1132	Elsio Weissheimer	22/08/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+97688	18/09/2024	Solaxis Eng. e Energia Solar - filial (POA)	1005	Elsio Weissheimer	17/10/2022		94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	Varistor de entrada da rede AC2 estourado, danificou também o transformador e o NTC de entrada. Após retirada dos componentes foi constatado que a trilhas do circuito fonte também foram danificadas (fotos em anexo). Problema provavelmente causado por sobretensão na entrada AC2. Placa/Agentes externos
+97689	18/09/2024	Solaxis Eng. e Energia Solar - filial (POA)	1021	Elsio Weissheimer	06/03/2024		94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	94.C7.000050	Quadro de Comutação Automático QuadCom Solar 50A	Diodos da fonte AC1 e suas trilhas carbonizados (ver foto), NTC1 e 2 estourados, capacitores C48 e C49 estufados. Causa provável: sobretensão nas redes de entrada. Agentes externos/Placa
+97931	18/10/2024	Vogliatec Sistema Energia	1133	Elsio Weissheimer	22/08/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa com diversos componentes danificados e trilhas abertas no circuito FIN1 (principalmente fase A e C - ver fotos em anexo). Provavel causa: pico de tensão na entrada 1. Placa/Agentes externos
+97949	21/10/2024	Anpla Facilities	1355	Elsio Weissheimer	18/08/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Borneiras de entrada com parafusos danificados devido uso. Microcontrolador/Agentes externos
+97971	22/10/2024	CMM Automação	1804	Elsio Weissheimer	14/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+98054	31/10/2024	Art Informática RS	1711	Elsio Weissheimer	27/02/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+98148	18/11/2024	L&W	1181	Elsio Weissheimer	26/07/2023		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+98248	28/11/2024	Lopat	2096	Elsio Weissheimer	08/03/2024		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Microcontrolador
+98268	02/12/2024	Syma Computadores Matriz	1709	Elsio Weissheimer	17/02/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Botões CH1 e CH2 de seleção de entrada e saída danificados. Microcontrolador/Componentes
+98280	03/12/2024	GE Informática	1633	Elsio Weissheimer	21/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Microcontrolador
+98281	03/12/2024	GE Informática	1632	Elsio Weissheimer	21/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Botões de seleção AC1 e AC2 avariados. Componentes/Microcontrolador
+98356	11/12/2024	CLS Informatica Ltda	1144	Elsio Weissheimer	22/11/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa referente ao pedido 537733. Microcontrolador em curto, defeito reincidente na placa. Placa será substituída. Microcontrolador
+98395	16/12/2024	ALG Sistemas de Energia	1606	Elsio Weissheimer	19/10/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado, diodo D42 led vermelho danificado e tampa riscada. Componentes/Agentes externos/Microcontrolador
+98456	20/12/2024	Mundial Info Energia Guarapuava PR	1184	Doraci Cristina Santos	09/09/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Micro em curto. Microcontrolador
+98473	23/12/2024	Compumaq RS	3719	Doraci Cristina Santos	20/06/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	De acordo com a RP 16902, placa não liga/não tem tensão de saída. Foi testada em bancada sem apresentar defeitos. Sem defeito
+98499	03/01/2025	Mapros Matriz	1745	Elsio Weissheimer	27/03/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+98566	13/01/2025	RKF Soluções em Energia PR	2219	Elsio Weissheimer	13/06/2024		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000031	ATS QuadCom Rack 30A/Eth	Placa com microcontrolador danificado. Microcontrolador
+98590	16/01/2025	Power Control RS	1640	Doraci Cristina Santos	29/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (LEDs e display acendem sem caracteres, relés não batem) Microcontrolador
+98654	24/01/2025	R&S Informática CE	1796	Doraci Cristina Santos	01/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+98686	30/01/2025	Railson de Castro Guilherme	1800	Doraci Cristina Santos	02/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+98734	03/02/2025	Casa Nobreak RS	1607	Doraci Cristina Santos	19/10/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+98743	04/02/2025	SERTEC	1005	Doraci Cristina Santos	03/08/2023		94.C7.000100	Quadro de Comutação Automático QuadCom Solar 100A	94.C7.000100	Quadro de Comutação Automático QuadCom Solar 100A	Equipamento somente para revisão. Voltará para o estoque. Sem defeito
+98832	12/02/2025	CLSES Tecnologia e Energia	1587	Doraci Cristina Santos	29/09/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+98879	18/02/2025	Dinâmica Sistemas Eletrônicos	1072	Doraci Cristina Santos	26/07/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Placa carbonizada nos diodos de retificação do circuito Fase1. Agentes externos
+98888	18/02/2025	Dinâmica Sistemas Eletrônicos	1884	Doraci Cristina Santos	05/09/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa antiga D0.136, chegou avariada e suja, componentes do circuito Fonte2 faltando. Agentes externos
+98897	18/02/2025	Dinâmica Sistemas Eletrônicos	3030	Doraci Cristina Santos	11/08/2022		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa estava com FW 3.03, batendo os relés ao ligar independente da tensão de entrada. Problema resolvido no FW versão 3.04. Firmware
+98898	18/02/2025	Dinâmica Sistemas Eletrônicos	3540	Doraci Cristina Santos	25/11/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa avariada, componentes e trilhas danificadas no circuito Fase1. Agentes externos
+98984	24/02/2025	Engetronic Serviços MG	1813	Doraci Cristina Santos	30/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Microchave CH1 com o pino quebrado (provavelmente avaria de transporte) Microcontrolador/Transporte
+99019	25/02/2025	Star Office Energia/SP	3719	Doraci Cristina Santos	20/06/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa carbonizada no circuito FONTE2. Agentes externos
+99021	25/02/2025	Star Office Energia/SP	3719	Doraci Cristina Santos	20/06/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	De acordo com a RA 69597, placa trocada por ser versão antiga, não apresentou defeito. Sem defeito
+99061	28/02/2025	Microvox	1064	Doraci Cristina Santos	23/04/2021		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Primeiramente veio somente a placa para conserto, foi constatado que o microcontrolador estava com defeito, feito o reparo e funcionou normalmente em bancada, chegou na autorizada a placa não funcionou, equipamento voltou para a NHS para analise e foi verificado que o microcontrolador havia dado defeito novamente Microcontrolador
+99076	28/02/2025	Vogliatec Sistema Energia	1684	Doraci Cristina Santos	30/01/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Microcontrolador
+99085	06/03/2025	TM Nobreaks	3551	Doraci Cristina Santos	08/12/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não estava ligando com a fonte 2. Resistor R48 (270K/1W) do circuito de alimentação do U3 aberto. Componentes
+99094	06/03/2025	New Connect	1682	Doraci Cristina Santos	25/01/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+99100	06/03/2025	Power Control RS	1640	Doraci Cristina Santos	29/11/2022		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+99101	06/03/2025	Power Control RS	1787	Doraci Cristina Santos	22/05/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+99176	11/03/2025	Mega Power Nobreak & Cia BH	1122	Doraci Cristina Santos	10/05/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+99178	11/03/2025	Mega Power Nobreak & Cia BH	1124	Doraci Cristina Santos	10/05/2022		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Microcontrolador
+99212	14/03/2025	RDois Tecnologia	3235	Elsio Weissheimer	01/02/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Componentes e trilhas referentes ao AC2 carbonizados. Agentes externos
+99388	26/03/2025	QHN Nobreaks PR	1007	Doraci Cristina Santos	19/10/2018		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	Microcontrolador danificado. Obs: Reparo feito em cortesia a pedido da coordenação. Microcontrolador
+99469	02/04/2025	Megamax	1861	Doraci Cristina Santos	23/08/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem)  Microcontrolador
+99470	02/04/2025	Megamax	1932	Doraci Cristina Santos	06/10/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+99516	07/04/2025	APS Nobreaks SP	3323	Doraci Cristina Santos	26/05/2023		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Placa não estava reconhecendo a REDE 2, após regravar o firmware funcionou normalmente. Firmware
+99545	09/04/2025	Lopat	1890	Doraci Cristina Santos	15/09/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (LEDs acesos direto, display acende sem caracteres, relés não batem). Microcontrolador
+99673	23/04/2025	Railson de Castro Guilherme	1800	Doraci Cristina Santos	02/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Cliente alega que QUADCOM ATS apresenta delay na comutação entre AC1 para AC2, após testes feitos em bancada o equipamento ficou dentro dos parâmetros de testes com sua comutação em aproximadamente 10ms. Sem defeito
+99706	28/04/2025	Mundial Info Energia Guarapuava PR	1228	Doraci Cristina Santos	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99707	28/04/2025	Mundial Info Energia Guarapuava PR	1229	Doraci Cristina Santos	07/12/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99708	28/04/2025	Mundial Info Energia Guarapuava PR	1127	Doraci Cristina Santos	17/03/2020		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99730	29/04/2025	New Connect	1869	Doraci Cristina Santos	28/08/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem). Microcontrolador
+99742	29/04/2025	Uniteelcom	1958	Doraci Cristina Santos	28/10/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99743	29/04/2025	Uniteelcom	1925	Doraci Cristina Santos	03/10/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99744	29/04/2025	Uniteelcom	1939	Doraci Cristina Santos	17/10/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99745	29/04/2025	Uniteelcom	1940	Doraci Cristina Santos	17/10/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+99812	12/05/2025	A Casa do Nobreak GO	3838	Doraci Cristina Santos	25/10/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000052	Quadro de Comutação Automático QuadCom 50A Eth	Placa não apresentou defeito. Sem defeito
+99813	12/05/2025	A Casa do Nobreak GO	1235	Doraci Cristina Santos	16/08/2024		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000056	Quadro de Comutação Automático QuadCom Trifásico 55A/Eth	De acordo com a RP nº 17935, placa não liga. Ao testar em bancada, não apresentou defeitos. Agentes externos/Sem defeito
+99861	15/05/2025	Inova Informatica	2585	Doraci Cristina Santos	10/12/2024		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000031	ATS QuadCom Rack 30A/Eth	Placa não apresentou defeito. Sem defeito
+99904	20/05/2025	A Casa do Nobreak GO	1235	Doraci Cristina Santos	16/08/2024		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000056	Quadro de Comutação Automático QuadCom Trifásico 55A/Eth	Placa enviada no pedido 592064. Placa incompatível com o equipamento do cliente, não tem o conector do "Botão" e não foi gravado firmware para versão com botão. Sem defeito
+99949	22/05/2025	Data One Energia SP	1886	Doraci Cristina Santos	24/07/2024		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Microcontrolador e componentes ao redor com solda fria, gerando defeitos intermitentes no equipamento. Não há registros de retrabalho na placa, foi mostrado para o setor de Placas que informou que a placa pode ter sido retrabalhada no setor de testes. Placa
+100151	25/06/2025	Francisco Lobello de Oliveira Rocha	1000	Doraci Cristina Santos	07/06/2021		94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	Placa pegou fogo nos varistores (V1, V2, V3, V12, V13), carbonizou trilhas e componentes que estavam próximos, cliente reclamou para o Jhon Lenon de baixa autonomia no banco de baterias de seu inversor, será cedido em cortesia duas baterias de 58Ah. Agentes externos
+100161	26/06/2025	ACV Sistemas de Energia SP	1901	Doraci Cristina Santos	30/08/2024		94.C4.000100	Quadro de Comutação Automático QuadCom 100A	94.C4.000100	Quadro de Comutação Automático QuadCom 100A	Resistor R48 (270K/1W) do circuito FASEIN2 aberto. Componentes
+100199	03/07/2025	Power Control RS	1798	Doraci Cristina Santos	01/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Autorizada alegou que microcontrolador havia queimado após conectar placa ETH, feito os testes em bancada não queimou o micro e placa ETH está funcionando normalmente, mas a leitura de tensão da fase 1 estava errada e não aceitava calibração, foi trocado o U10 (FOD8071) e resolveu o problema Componentes
+100317	22/07/2025	Pro ups Soluções	3647	Doraci Cristina Santos	09/04/2024		94.C4.000050	Quadro de Comutação Automático QuadCom 50A	94.C4.000050	Quadro de Comutação Automático QuadCom 50A	Resistor R48 (alimentação da fonte 2) aberto. Resistor R4 com um dos terminais quebrado. Componentes
+100375	25/07/2025	IP Internet Provider	1006	Doraci Cristina Santos	04/10/2023		94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	94.C7.000055	Quadro de Comutação Automático QuadCom Trifásico Solar 55A	Microcontrolador queimado Microcontrolador
+100377	29/07/2025	QHN Nobreaks PR	1415	Doraci Cristina Santos	01/12/2021		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador em curto. Microcontrolador
+100479	06/08/2025	Supridatta NoBreaks	1013	Doraci Cristina Santos	04/06/2019		94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	94.C4.000055	Quadro de Comutação Automático QuadCom Trifásico 55A	De acordo com a RA 69904, placa não liga. Não apresentou o defeito reclamado em bancada, porém não estava mostrando a potência de saída, defeito nos sensores de corrente. Componentes
+100486	06/08/2025	RD Sistemas MG	1815	Doraci Cristina Santos	30/06/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Microcontrolador danificado (display acende sem caracteres, relés não batem) Microcontrolador
+100579	22/08/2025	Power Control RS	2072	Ellen Teodoro Gonçalves	15/02/2024		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa não apresentou defeito, testada 100%. Sem defeito
+100669	10/09/2025	Avance Nobreaks MT	1893	Ellen Teodoro Gonçalves	19/09/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+100670	10/09/2025	Avance Nobreaks MT	1895	Ellen Teodoro Gonçalves	19/09/2023		94.C6.000030	ATS QuadCom Rack 30A	94.C6.000030	ATS QuadCom Rack 30A	Placa com microcontrolador danificado. Microcontrolador
+`;
+        // Variáveis globais para os gráficos e dados
+        let problemsByYearChartInstance = null;
+        let problemsByModelChartInstance = null;
+        let problemsByTypeChartInstance = null;
+        let problemsByManufacturingYearChartInstance = null;
+        let allData = [];
+        let aggregatedData = {};
+        // Filtros ativos
+        let activeFilters = {
+            year: 'all',
+            model: null,
+            problemType: null,
+            manufacturingYear: null
+        };
+
+        const yearSelector = document.getElementById('yearSelector');
+        
+        // Função para converter os dados brutos em formato JSON
+        function parseRawData(dataString) {
+            const headers = ["Número", "Emissão", "Cliente", "Número de série", "Colaborador", "Fabricação", "Descrição", "Cód. modelo base", "Desc. modelo base", "Cód. modelo derivado", "Desc. modelo derivado", "Problemas", "Soluções", "Total de horas trabalhadas", "Família comercial", "Tipo de custo", "Situação", "Item"];
+            
+            const lines = dataString.trim().split('\n');
+            const jsonData = lines.map(line => {
+                const values = line.split('\t');
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = values[index] || '';
+                });
+                return obj;
+            });
+            return jsonData;
+        }
+
+        window.onload = function() {
+            allData = parseRawData(rawData);
+            processAndDisplayData(allData);
+        };
+
+        function processAndDisplayData(data) {
+            // 1. Processar e agregar todos os dados
+            const problemsByYear = {};
+            const problemsByManufacturingYear = {};
+
+            data.forEach(row => {
+                 // Converte data dd/mm/yyyy para um formato que o new Date() entende
+                let dateParts = row['Emissão'].split('/');
+                let emissionDate = null;
+                if(dateParts.length === 3) {
+                    // new Date(year, monthIndex, day)
+                    emissionDate = new Date(+dateParts[2], dateParts[1] - 1, +dateParts[0]);
+                     row.year = +dateParts[2];
+                } else {
+                    const parsedDate = new Date(row['Emissão']);
+                    if (!isNaN(parsedDate)) {
+                        emissionDate = parsedDate;
+                        row.year = parsedDate.getFullYear();
+                    }
+                }
+
+                // Processa o ano de fabricação
+                let fabDateParts = row['Fabricação'].split('/');
+                if(fabDateParts.length === 3) {
+                    const fabYear = parseInt(fabDateParts[2]);
+                    if (!isNaN(fabYear)) {
+                        row.manufacturingYear = fabYear;
+                        problemsByManufacturingYear[fabYear] = (problemsByManufacturingYear[fabYear] || 0) + 1;
+                    }
+                } else {
+                    row.manufacturingYear = null;
+                }
+
+                if (emissionDate && !isNaN(emissionDate)) {
+                    const year = emissionDate.getFullYear();
+                    const model = row['Desc. modelo base'] || 'Não especificado';
+                    
+                    // Extrai a classificação do problema
+                    let problemText = row['Problemas'] || 'Não especificado';
+                    let problem;
+
+                    // Prioriza a categoria "Microcontrolador" se a palavra estiver presente
+                    if (problemText.toLowerCase().includes('microcontrolador')) {
+                        problem = 'Microcontrolador';
+                    } else {
+                        // Se não, usa a lógica anterior de pegar o texto após o último ponto ou barra
+                        const lastSeparatorIndex = Math.max(problemText.lastIndexOf('.'), problemText.lastIndexOf('/'));
+                        problem = lastSeparatorIndex !== -1 ? problemText.substring(lastSeparatorIndex + 1).trim() : problemText.trim();
+                    }
+
+                    // Agregação por ano (para o gráfico de evolução)
+                    problemsByYear[year] = (problemsByYear[year] || 0) + 1;
+                }
+            });
+
+            // 2. Renderizar o gráfico de evolução (que não será filtrado)
+            renderEvolutionChart(problemsByYear);
+            renderManufacturingYearChart(problemsByManufacturingYear);
+            
+            // 3. Configurar o filtro global
+            setupGlobalFilter(Object.keys(problemsByYear));
+            
+            // 4. Chamar a atualização para renderizar os gráficos e a tabela com a visão inicial ("Todos os Anos")
+            applyFiltersAndRender();
+        }
+        
+        function setupGlobalFilter(years) {
+            yearSelector.innerHTML = '<option value="all">Todos os Anos</option>';
+            const sortedYears = years.sort((a, b) => b - a);
+            sortedYears.forEach(year => {
+                const option = document.createElement('option'); 
+                option.value = year;
+                option.textContent = year;
+                yearSelector.appendChild(option);
+            });
+            yearSelector.addEventListener('change', (e) => {
+                // Ao mudar o ano, reseta os outros filtros
+                activeFilters.year = e.target.value;
+                activeFilters.model = null;
+                activeFilters.problemType = null;
+                activeFilters.manufacturingYear = null;
+                applyFiltersAndRender();
+            });
+        }
+
+        function applyFiltersAndRender() {
+            // 1. Filtrar os dados brutos com base nos filtros ativos
+            let filteredData = allData;
+
+            if (activeFilters.year !== 'all') {
+                const yearNum = parseInt(activeFilters.year);
+                filteredData = filteredData.filter(row => row.year === yearNum);
+            }
+            if (activeFilters.manufacturingYear) {
+                const fabYearNum = parseInt(activeFilters.manufacturingYear);
+                filteredData = filteredData.filter(row => row.manufacturingYear === fabYearNum);
+            }
+            if (activeFilters.model) {
+                filteredData = filteredData.filter(row => row['Desc. modelo base'] === activeFilters.model);
+            }
+            if (activeFilters.problemType) {
+                filteredData = filteredData.filter(row => {
+                    let problemText = row['Problemas'] || 'Não especificado';
+                    let problemCategory;
+                    if (problemText.toLowerCase().includes('microcontrolador')) {
+                        problemCategory = 'Microcontrolador';
+                    } else {
+                        const lastSeparatorIndex = Math.max(problemText.lastIndexOf('.'), problemText.lastIndexOf('/'));
+                        problemCategory = lastSeparatorIndex !== -1 ? problemText.substring(lastSeparatorIndex + 1).trim() : problemText.trim();
+                    }
+                    return problemCategory === activeFilters.problemType;
+                });
+            }
+
+            // 2. Re-agregar os dados filtrados para os gráficos de evolução
+            const problemsByYear = {};
+            const problemsByManufacturingYear = {};
+
+            filteredData.forEach(row => {
+                if (row.year) {
+                    problemsByYear[row.year] = (problemsByYear[row.year] || 0) + 1;
+                }
+                if (row.manufacturingYear) {
+                    problemsByManufacturingYear[row.manufacturingYear] = (problemsByManufacturingYear[row.manufacturingYear] || 0) + 1;
+                }
+            });
+
+            // Renderiza os gráficos de evolução com os dados filtrados
+            renderEvolutionChart(problemsByYear);
+            renderManufacturingYearChart(problemsByManufacturingYear);
+
+
+            // 2. Re-agregar os dados filtrados para os gráficos
+            const modelData = {};
+            const typeData = {};
+
+            filteredData.forEach(row => {
+                const model = row['Desc. modelo base'] || 'Não especificado';
+                let problemText = row['Problemas'] || 'Não especificado';
+                let problem;
+                if (problemText.toLowerCase().includes('microcontrolador')) {
+                    problem = 'Microcontrolador';
+                } else {
+                    const lastSeparatorIndex = Math.max(problemText.lastIndexOf('.'), problemText.lastIndexOf('/'));
+                    problem = lastSeparatorIndex !== -1 ? problemText.substring(lastSeparatorIndex + 1).trim() : problemText.trim();
+                }
+
+                modelData[model] = (modelData[model] || 0) + 1;
+                typeData[problem] = (typeData[problem] || 0) + 1;
+            });
+
+            // 3. Atualizar os títulos e renderizar tudo
+            updateTitlesAndDisplay();
+            renderModelChart(modelData);
+            renderTypeChart(typeData);
+            highlightEvolutionChart(activeFilters.year);
+            highlightManufacturingYearChart(activeFilters.manufacturingYear);
+            populateTable(filteredData);
+        }
+
+        function updateTitlesAndDisplay() {
+            let modelTitle, typeTitle;
+            const filtersDisplay = document.getElementById('active-filters-display');
+            const clearFiltersBtn = document.getElementById('clear-filters-btn');
+            filtersDisplay.innerHTML = '';
+
+            const createFilterTag = (text, filterType) => {
+                return `<span class="bg-blue-200 text-blue-800 px-2 py-1 rounded-md font-medium">${text}</span>`;
+            };
+
+            const isAnyFilterActive = activeFilters.year !== 'all' || activeFilters.model || activeFilters.problemType || activeFilters.manufacturingYear;
+
+            if (isAnyFilterActive) {
+                clearFiltersBtn.classList.remove('hidden');
+                clearFiltersBtn.onclick = () => {
+                    activeFilters.year = 'all';
+                    activeFilters.model = null;
+                    activeFilters.problemType = null;
+                    activeFilters.manufacturingYear = null;
+                    yearSelector.value = 'all';
+                    applyFiltersAndRender();
+                };
+            } else {
+                clearFiltersBtn.classList.add('hidden');
+            }
+
+            if (!isAnyFilterActive) {
+                modelTitle = 'Modelos que mais deram problema (Total)'.toUpperCase();
+                typeTitle = 'Tipos de Problema (Total)'.toUpperCase();
+            } else {
+                let yearText = activeFilters.year === 'all' ? 'Total' : activeFilters.year;
+                modelTitle = `Modelos que mais deram problema (${yearText})`.toUpperCase();
+                typeTitle = `Tipos de Problema (${yearText})`.toUpperCase();
+                
+                if (activeFilters.manufacturingYear) filtersDisplay.innerHTML += createFilterTag(`Ano Fab.: ${activeFilters.manufacturingYear}`);
+
+                if (activeFilters.model) {
+                    filtersDisplay.innerHTML += createFilterTag(`Modelo: ${activeFilters.model}`);
+                }
+                if (activeFilters.problemType) {
+                    filtersDisplay.innerHTML += createFilterTag(`Tipo: ${activeFilters.problemType}`);
+                }
+            }
+
+            document.getElementById('model-chart-title').textContent = modelTitle;
+            document.getElementById('type-chart-title').textContent = typeTitle;
+        }
+
+
+        function renderEvolutionChart(data) {
+            const ctx = document.getElementById('problemsByYearChart').getContext('2d');
+            const sortedYears = Object.keys(data).sort();
+            const chartData = sortedYears.map(year => data[year]);
+            
+            if (problemsByYearChartInstance) problemsByYearChartInstance.destroy();
+
+            problemsByYearChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedYears,
+                    datasets: [{
+                        label: 'Quantidade de Problemas',
+                        data: chartData,
+                        backgroundColor: 'rgba(0, 84, 159, 0.8)', // NHS Blue
+                        borderColor: 'rgba(0, 84, 159, 1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            beginAtZero: true,
+                            ticks: { color: '#4B5563' }, // gray-600
+                            grid: { color: '#E5E7EB' }, // gray-200
+                            grace: '5%'
+                        },
+                        x: { ticks: { color: '#4B5563' }, grid: { color: '#E5E7EB' } }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    onClick: (event, elements, chart) => {
+                        if (elements.length > 0) {
+                            const clickedIndex = elements[0].index;
+                            const year = chart.data.labels[clickedIndex]; // Corrigido: 'chart' é o terceiro argumento do evento onClick
+                            yearSelector.value = year;
+                            // Dispara o evento de change para usar a lógica existente
+                            yearSelector.dispatchEvent(new Event('change'));
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'customCanvasLables',
+                    afterDatasetsDraw(chart, args, options) {
+                        const { ctx } = chart;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = 'rgba(55, 65, 81, 1)'; // gray-700
+                        ctx.textAlign = 'center';
+                        
+                        chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                           const value = chart.data.datasets[0].data[index];
+                           if(value > 0) {
+                             ctx.fillText(value, datapoint.x, datapoint.y - 5);
+                           }
+                        });
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+
+        function renderManufacturingYearChart(data) {
+            const ctx = document.getElementById('problemsByManufacturingYearChart').getContext('2d');
+            const sortedYears = Object.keys(data).sort();
+            const chartData = sortedYears.map(year => data[year]);
+            
+            if (problemsByManufacturingYearChartInstance) problemsByManufacturingYearChartInstance.destroy();
+
+            problemsByManufacturingYearChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedYears,
+                    datasets: [{
+                        label: 'Quantidade de Problemas',
+                        data: chartData,
+                        backgroundColor: 'rgba(0, 84, 159, 0.8)', // NHS Blue
+                        borderColor: 'rgba(0, 84, 159, 1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#4B5563' }, grid: { color: '#E5E7EB' }, grace: '5%' },
+                        x: { ticks: { color: '#4B5563' }, grid: { color: '#E5E7EB' } }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    onClick: (event, elements, chart) => {
+                        if (elements.length > 0) {
+                            const clickedIndex = elements[0].index;
+                            const year = chart.data.labels[clickedIndex];
+                            activeFilters.manufacturingYear = activeFilters.manufacturingYear === year ? null : year;
+                            applyFiltersAndRender();
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'customCanvasLables',
+                    afterDatasetsDraw(chart, args, options) {
+                        const { ctx } = chart;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = 'rgba(55, 65, 81, 1)'; // gray-700
+                        ctx.textAlign = 'center';
+                        
+                        chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                           const value = chart.data.datasets[0].data[index];
+                           if(value > 0) {
+                             ctx.fillText(value, datapoint.x, datapoint.y - 5);
+                           }
+                        });
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+
+        function highlightEvolutionChart(selectedYear) {
+            if (!problemsByYearChartInstance) return;
+
+            const dataset = problemsByYearChartInstance.data.datasets[0];
+            const defaultColor = 'rgba(0, 84, 159, 0.8)'; // NHS Blue
+            const highlightColor = 'rgba(243, 112, 33, 0.8)'; // NHS Orange for highlight
+
+            dataset.backgroundColor = problemsByYearChartInstance.data.labels.map(yearLabel => {
+                return (selectedYear === 'all' || yearLabel === selectedYear) ? defaultColor : 'rgba(0, 84, 159, 0.3)';
+            });
+            
+            problemsByYearChartInstance.update();
+        }
+
+        function highlightManufacturingYearChart(selectedYear) {
+            if (!problemsByManufacturingYearChartInstance) return;
+
+            const dataset = problemsByManufacturingYearChartInstance.data.datasets[0];
+            const defaultColor = 'rgba(0, 84, 159, 0.8)'; // NHS Blue
+
+            dataset.backgroundColor = problemsByManufacturingYearChartInstance.data.labels.map(yearLabel => {
+                // Se um ano de fabricação está selecionado, deixa as outras barras mais claras
+                return (selectedYear === null || yearLabel == selectedYear) ? defaultColor : 'rgba(0, 84, 159, 0.3)';
+            });
+            
+            problemsByManufacturingYearChartInstance.update();
+        }
+
+        
+        function renderModelChart(data) {
+            const ctx = document.getElementById('problemsByModelChart').getContext('2d');
+            const chartContainer = document.getElementById('problemsByModelChart').parentElement;
+            
+            const sortedData = Object.entries(data).sort(([,a],[,b]) => b-a);
+            const labels = sortedData.map(item => item[0]);
+            const counts = sortedData.map(item => item[1]);
+
+            // Ajusta a altura do container do gráfico dinamicamente para garantir que todos os textos sejam visíveis
+            const baseHeight = 80; // Altura base para eixos e espaçamento
+            const heightPerLabel = 25; // Espaço vertical para cada modelo
+            const newHeight = baseHeight + labels.length * heightPerLabel;
+            chartContainer.style.height = `${newHeight}px`;
+
+            if (problemsByModelChartInstance) problemsByModelChartInstance.destroy();
+
+            problemsByModelChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Quantidade de Problemas',
+                        data: counts,
+                        backgroundColor: 'rgba(0, 169, 224, 0.8)', // NHS Light Blue
+                        borderColor: 'rgba(0, 169, 224, 1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { 
+                            ticks: { 
+                                color: '#4B5563',
+                                font: { size: 10 } // Diminui o tamanho da fonte para melhor visualização
+                            }, 
+                            grid: { display: false } },
+                        x: { 
+                            beginAtZero: true,
+                            ticks: { color: '#4B5563' },
+                            grid: { color: '#E5E7EB' },
+                            grace: '10%'
+                        }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false },
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const clickedIndex = elements[0].index;
+                            const model = problemsByModelChartInstance.data.labels[clickedIndex];
+                            // Alterna o filtro: se já estiver ativo, desativa. Senão, ativa.
+                            activeFilters.model = activeFilters.model === model ? null : model;
+                            applyFiltersAndRender();
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'customCanvasLablesHorizontal',
+                    afterDatasetsDraw(chart, args, options) {
+                        const { ctx } = chart;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = 'rgba(55, 65, 81, 1)'; // gray-700
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        
+                        chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                           const value = chart.data.datasets[0].data[index];
+                           if(value > 0) {
+                                ctx.fillText(value, datapoint.x + 5, datapoint.y);
+                           }
+                        });
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+        
+        function renderTypeChart(data) {
+            const ctx = document.getElementById('problemsByTypeChart').getContext('2d');
+
+            const sortedProblems = Object.entries(data)
+                .sort(([,a],[,b]) => b-a)
+                .slice(0, 7);
+
+            const labels = sortedProblems.map(item => item[0]);
+            const counts = sortedProblems.map(item => item[1]);
+
+            if (problemsByTypeChartInstance) problemsByTypeChartInstance.destroy();
+
+            problemsByTypeChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Top Tipos de Problema',
+                        data: counts,
+                        backgroundColor: 'rgba(243, 112, 33, 0.8)', // NHS Orange
+                        borderColor: 'rgba(243, 112, 33, 1)',
+                        borderWidth: 1,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { ticks: { color: '#4B5563' }, grid: { display: false } },
+                        x: { 
+                            ticks: { color: '#4B5563' },
+                            grid: { color: '#E5E7EB' },
+                            grace: '10%'
+                        }
+                    },
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: false },
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const clickedIndex = elements[0].index;
+                            const problemType = problemsByTypeChartInstance.data.labels[clickedIndex];
+                            // Alterna o filtro
+                            activeFilters.problemType = activeFilters.problemType === problemType ? null : problemType;
+                            applyFiltersAndRender();
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'customCanvasLablesHorizontal',
+                    afterDatasetsDraw(chart, args, options) {
+                        const { ctx } = chart;
+                        ctx.save();
+                        ctx.font = '12px sans-serif';
+                        ctx.fillStyle = 'rgba(55, 65, 81, 1)'; // gray-700
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        
+                        chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                           const value = chart.data.datasets[0].data[index];
+                           if(value > 0) {
+                               ctx.fillText(value, datapoint.x + 5, datapoint.y);
+                           }
+                        });
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+
+
+        function populateTable(data) {
+            const tableBody = document.getElementById('dataTable');
+            const noDataMsg = document.getElementById('no-data-message');
+            tableBody.innerHTML = '';
+
+            if(data.length === 0){
+                noDataMsg.classList.remove('hidden');
+                return;
+            }
+
+            noDataMsg.classList.add('hidden');
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors';
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">${row['Número'] || ''}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">${row['Emissão'] || 'N/A'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">${row['Cliente'] || ''}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700 break-words">${row['Problemas'] || ''}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+    </script>
+</body>
+</html>
